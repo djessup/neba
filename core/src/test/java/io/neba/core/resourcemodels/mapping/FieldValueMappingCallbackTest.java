@@ -35,9 +35,17 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.cglib.proxy.Factory;
 import org.springframework.cglib.proxy.LazyLoader;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.Vector;
 
 import static io.neba.api.resourcemodels.AnnotatedFieldMapper.OngoingMapping;
 import static io.neba.core.resourcemodels.mapping.AnnotatedFieldMappers.AnnotationMapping;
@@ -55,12 +63,15 @@ import static org.mockito.Mockito.*;
 /**
  * @author Olaf Otto
  */
+// TODO: 20/07/2016 Additional test coverage for UUID references, to same level as path-based references.
 @RunWith(MockitoJUnitRunner.class)
 public class FieldValueMappingCallbackTest {
     @Mock
     private ValueMap valueMap;
     @Mock
     private ResourceResolver resourceResolver;
+    @Mock
+    private Session session;
     @Mock
     private ConfigurableBeanFactory factory;
     @Mock
@@ -77,17 +88,18 @@ public class FieldValueMappingCallbackTest {
     private Resource resource;
     private Resource parentOfResourceTargetedByMapping;
     private Resource resourceTargetedByMapping;
+    private Node nodeTargetedByUuidMapping;
 
     @SuppressWarnings("unused")
     private Object mappedFieldOfTypeObject;
+
     @SuppressWarnings("unused")
     private String mappedFieldOfTypeString;
 
     private Field mappedField;
-
     private Object targetValue;
-    private Object model = this;
 
+    private Object model = this;
     private OngoingMapping ongoingMapping;
 
     @Before
@@ -367,6 +379,13 @@ public class FieldValueMappingCallbackTest {
     public void testReferenceResolution() throws Exception {
         withResourceTargetedByMapping("/path/stored/in/property");
         mapSingleReferenceField(Resource.class, "/path/stored/in/property");
+        assertMappedFieldValueIs(this.resourceTargetedByMapping);
+    }
+
+    @Test
+    public void testUuidReferenceResolution() throws Exception {
+        withResourceTargetedByUuidMapping("/resource/referenced/via/uuid", "1a1a1a1a-1a1a-1a1a-1a1a-1a1a1a1a1a1a");
+        mapSingleUuidReferenceField(Resource.class, "1a1a1a1a-1a1a-1a1a-1a1a-1a1a1a1a1a1a");
         assertMappedFieldValueIs(this.resourceTargetedByMapping);
     }
 
@@ -1426,6 +1445,12 @@ public class FieldValueMappingCallbackTest {
         mapField();
     }
 
+    private void mapSingleUuidReferenceField(Class<?> fieldType, String referenceIdentifier) throws NoSuchFieldException {
+        withPropertyField(fieldType, referenceIdentifier);
+        withUuidReferenceAnnotationPresent();
+        mapField();
+    }
+
     private void mapReferenceCollectionField(
     		@SuppressWarnings("rawtypes") Class<? extends Collection> collectionType,
     		Class<?> componentType, String[] referencePaths)
@@ -1541,6 +1566,20 @@ public class FieldValueMappingCallbackTest {
         when(this.resourceTargetedByMapping.getName()).thenReturn(substringAfterLast(path, "/"));
     }
 
+	/**
+     * Creates a mock JCR <code>nodeTargetedByUuidMapping</code> that can be resolved by UUID and will return the same
+     * path as the resourced mocked with {@link #withResourceTargetedByMapping(String)}
+     */
+    private void withResourceTargetedByUuidMapping(String path, String uuid) throws RepositoryException {
+        this.nodeTargetedByUuidMapping = mock(Node.class);
+        withResourceTargetedByMapping(path);
+        when(this.resourceTargetedByMapping.getResourceResolver()).thenReturn(this.resourceResolver);
+        when(this.resourceResolver.adaptTo(Session.class)).thenReturn(this.session);
+        when(this.resourceTargetedByMapping.adaptTo(Node.class)).thenReturn(this.nodeTargetedByUuidMapping);
+        when(this.nodeTargetedByUuidMapping.getPath()).thenReturn(path);
+        when(this.session.getNodeByIdentifier(eq(uuid))).thenReturn(this.nodeTargetedByUuidMapping);
+    }
+
     private void withResourceTargetedByMapping(Resource resource) {
         this.resourceTargetedByMapping = resource;
     }
@@ -1584,6 +1623,12 @@ public class FieldValueMappingCallbackTest {
     private void withReferenceAnnotationPresent() {
         doReturn(true).when(this.mappedFieldMetadata).isReference();
         doReturn(true).when(this.mappedFieldMetadata).isPropertyType();
+    }
+
+    private void withUuidReferenceAnnotationPresent() {
+        doReturn(true).when(this.mappedFieldMetadata).isReference();
+        doReturn(true).when(this.mappedFieldMetadata).isPropertyType();
+        doReturn(true).when(this.mappedFieldMetadata).isUuidFlagPresentOnReference();
     }
 
     private void withAppendReferenceAppendPath(String relativeAppendPath) {

@@ -30,6 +30,7 @@ import static org.springframework.util.ReflectionUtils.setField;
 /**
  * @author Olaf Otto
  */
+// TODO: 20/07/2016 Test coverage for UUID reference flag
 public class MappedFieldMetaDataTest {
 	private Class<?> modelType = TestResourceModel.class;
 

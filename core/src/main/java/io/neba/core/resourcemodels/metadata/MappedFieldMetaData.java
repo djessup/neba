@@ -66,6 +66,7 @@ public class MappedFieldMetaData {
     private final String path;
     private final boolean isReference;
     private final boolean isAppendPathPresentOnReference;
+    private final boolean isUuidFlagPresentOnReference;
     private final String appendPathOnReference;
     private final boolean isThisReference;
     private final boolean isPathAnnotationPresent;
@@ -117,6 +118,7 @@ public class MappedFieldMetaData {
 
         // The following initializations are not atomic but order-sensitive.
         this.isAppendPathPresentOnReference = isAppendPathPresentOnReferenceInternal();
+        this.isUuidFlagPresentOnReference = isUuidFlagPresentOnReferenceInternal();
         this.appendPathOnReference = getAppendPathFromReference();
         this.isResolveBelowEveryChildPathPresentOnChildren = isResolveBelowEveryChildPathPresentOnChildrenInternal();
         this.resolveBelowEveryChildPathOnChildren = getResolveBelowEveryChildPathFromChildren();
@@ -170,12 +172,20 @@ public class MappedFieldMetaData {
         return isReference && !isBlank(getAppendPathOfReference());
     }
 
+    private boolean isUuidFlagPresentOnReferenceInternal() {
+        return isReference && getUuidFlagOfReference();
+    }
+
     private String getAppendPathOfReference() {
         String path = this.annotations.get(Reference.class).append();
         if (!isEmpty(path) && path.charAt(0) != '/') {
             path = '/' + path;
         }
         return path;
+    }
+
+    private boolean getUuidFlagOfReference() {
+        return this.annotations.get(Reference.class).uuid();
     }
 
     private boolean isResolveBelowEveryChildPathPresentOnChildrenInternal() {
@@ -284,6 +294,14 @@ public class MappedFieldMetaData {
      */
     public boolean isAppendPathPresentOnReference() {
         return isAppendPathPresentOnReference;
+    }
+
+    /**
+     * @return Whether this field has a {@link io.neba.api.annotations.Reference} annotation with the
+     * {@link io.neba.api.annotations.Reference#uuid() uuid flag} set to true.
+     */
+    public boolean isUuidFlagPresentOnReference() {
+        return isUuidFlagPresentOnReference;
     }
 
     /**
@@ -427,4 +445,5 @@ public class MappedFieldMetaData {
     public String toString() {
         return getClass().getName() + " [" + this.field + "]";
     }
+
 }

@@ -27,9 +27,16 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.cglib.proxy.LazyLoader;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static io.neba.core.resourcemodels.mapping.AnnotatedFieldMappers.AnnotationMapping;
 import static io.neba.core.util.ReflectionUtil.instantiateCollectionType;
@@ -299,7 +306,11 @@ public class FieldValueMappingCallback {
                 if (field.metaData.isAppendPathPresentOnReference()) {
                     referencedResourcePath += field.metaData.getAppendPathOnReference();
                 }
-                value = resolveResource(referencedResourcePath, field.metaData.getType());
+                if (field.metaData.isUuidFlagPresentOnReference()) {
+                    value = resolveResourceViaUuid(referencedResourcePath, field.metaData.getType());
+                } else {
+                    value = resolveResource(referencedResourcePath, field.metaData.getType());
+                }
             }
         }
         return value;
@@ -344,7 +355,12 @@ public class FieldValueMappingCallback {
 
         final Class<?> componentClass = field.metaData.getTypeParameter();
         for (String path : resourcePaths) {
-            Object element = resolveResource(path, componentClass);
+            Object element = null;
+            if (field.metaData.isUuidFlagPresentOnReference()) {
+                element = resolveResourceViaUuid(path, componentClass);
+            } else {
+                element = resolveResource(path, componentClass);
+            }
             if (element != null) {
                 values.add(element);
             }
@@ -403,6 +419,22 @@ public class FieldValueMappingCallback {
     private <T> T resolveResource(final String resourcePath, final Class<T> targetType) {
         Resource absoluteResource = this.resource.getResourceResolver().getResource(this.resource, resourcePath);
         return convert(absoluteResource, targetType);
+    }
+
+	/**
+     * Uses the current resource's {@link Session} to locate the node with the given identifier, then passes that node's
+     * path to {@link #resolveResource(String, Class)} to attempt to cast it to the desired field type.
+     *
+     * @return the resolved and converted resource, or <code>null</code>.
+     */
+    private <T> T resolveResourceViaUuid(final String resourceIdentifier, final Class<T> targetType) {
+        Session session = this.resource.getResourceResolver().adaptTo(Session.class);
+        try {
+            Node node = session.getNodeByIdentifier(resourceIdentifier);
+            return resolveResource(node.getPath(), targetType);
+        } catch (RepositoryException e) {
+            return null;
+        }
     }
 
     /**

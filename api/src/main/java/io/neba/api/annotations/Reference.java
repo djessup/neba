@@ -176,6 +176,7 @@ import static java.lang.annotation.ElementType.FIELD;
  *
  * @author Olaf Otto
  */
+// TODO: 20/07/2016 Document UUID flag
 @Documented
 @Target({FIELD, ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
@@ -184,4 +185,6 @@ public @interface Reference {
      * Append this path segment to the reference path prior to resource resolution.
      */
     String append() default "";
+
+    boolean uuid() default false;
 }

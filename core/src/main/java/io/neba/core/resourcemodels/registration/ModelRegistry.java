@@ -17,7 +17,6 @@
 package io.neba.core.resourcemodels.registration;
 
 import io.neba.core.blueprint.EventhandlingBarrier;
-import io.neba.core.sling.AdministrativeResourceResolver;
 import io.neba.core.util.ConcurrentDistinctMultiValueMap;
 import io.neba.core.util.Key;
 import io.neba.core.util.MatchedBundlesPredicate;
@@ -27,7 +26,6 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.framework.Bundle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -57,10 +55,10 @@ public class ModelRegistry {
 
     /**
      * Generate a {@link Key} representing both the
-     * {@link org.apache.sling.api.resource.Resource#getResourceType() sling resource type}
-     * and the {@link javax.jcr.Node#getPrimaryNodeType() primary node type} of the resource, if any.
-     * Rationale: Resources may have the same <code>sling:resourceType</code>, but different primary types,
-     * thus potentially producing different results when mapped. The cache must thus use both
+     * {@link org.apache.sling.api.resource.Resource#getResourceType() sling resource type},
+     * {@link javax.jcr.Node#getPrimaryNodeType() primary node type} and the {@link Node#getMixinNodeTypes() mixin types}
+     * of the resource, if any. Rationale: Resources may have the same <code>sling:resourceType</code>, but different primary or mixin types,
+     * thus potentially producing different results when mapped. The cache must thus use these
      * types as a key for cached adaptation results.<br />
      *
      * @param resource           must not be <code>null</code>.
@@ -73,7 +71,12 @@ public class ModelRegistry {
         Node node = resource.adaptTo(Node.class);
         if (node != null) {
             try {
-                key = new Key(resource.getResourceType(), node.getPrimaryNodeType().getName(), furtherElementsKey);
+                key = new Key(
+                        resource.getResourceType(),
+                        resource.getResourceSuperType(),
+                        node.getPrimaryNodeType().getName(),
+                        Arrays.toString(node.getMixinNodeTypes()),
+                        furtherElementsKey);
             } catch (RepositoryException e) {
                 throw new RuntimeException("Unable to retrieve the primary type of " + resource + ".", e);
             }
@@ -142,9 +145,6 @@ public class ModelRegistry {
     private final Map<Key, Object> unmappedTypesCache = new ConcurrentHashMap<>();
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final AtomicInteger state = new AtomicInteger(0);
-
-    @Autowired
-    private AdministrativeResourceResolver resourceResolver;
 
     /**
      * Finds the most specific models for the given {@link Resource}. The model's bean
@@ -308,7 +308,7 @@ public class ModelRegistry {
     public void shutdown() {
         this.logger.info("The model registry is shutting down.");
         clearRegisteredModels();
-        registryChanged();
+        clearLookupCaches();
     }
 
     /**
@@ -322,7 +322,7 @@ public class ModelRegistry {
         for (Collection<OsgiBeanSource<?>> values : this.typeNameToBeanSourcesMap.values()) {
             CollectionUtils.filter(values, sourcesWithBundles);
         }
-        registryChanged();
+        clearLookupCaches();
         this.logger.info("Removed " + sourcesWithBundles.getFilteredElements()
                 + " resource models of bundle " + displayNameOf(bundle) + "...");
     }
@@ -348,7 +348,7 @@ public class ModelRegistry {
         for (String resourceType : types) {
             this.typeNameToBeanSourcesMap.put(resourceType, source);
         }
-        registryChanged();
+        clearLookupCaches();
     }
 
     /**
@@ -374,7 +374,7 @@ public class ModelRegistry {
                         if (!source.isValid()) {
                             this.logger.info("Reference to " + source + " is invalid, removing.");
                             it.remove();
-                            registryChanged();
+                            clearLookupCaches();
                         }
                     }
                 }
@@ -389,7 +389,7 @@ public class ModelRegistry {
      * Clears all quick lookup caches for resource models, but
      * not the registry itself.
      */
-    private synchronized void registryChanged() {
+    public synchronized void clearLookupCaches() {
         this.state.incrementAndGet();
         this.lookupCache.clear();
         this.unmappedTypesCache.clear();
@@ -443,7 +443,7 @@ public class ModelRegistry {
      */
     private Collection<LookupResult> resolveBeanSources(Resource resource, Class<?> compatibleType, boolean resolveMostSpecific) {
         Collection<LookupResult> sources = new ArrayList<>(64);
-        for (final String resourceType : mappableTypeHierarchyOf(resource, this.resourceResolver.getResolver())) {
+        for (final String resourceType : mappableTypeHierarchyOf(resource)) {
             Collection<OsgiBeanSource<?>> allSourcesForType = this.typeNameToBeanSourcesMap.get(resourceType);
             Collection<OsgiBeanSource<?>> sourcesForCompatibleType = filter(allSourcesForType, compatibleType);
             if (sourcesForCompatibleType != null && !sourcesForCompatibleType.isEmpty()) {
@@ -467,7 +467,7 @@ public class ModelRegistry {
      */
     private Collection<LookupResult> resolveMostSpecificBeanSources(Resource resource, String beanName) {
         Collection<LookupResult> sources = new ArrayList<>();
-        for (final String resourceType : mappableTypeHierarchyOf(resource, this.resourceResolver.getResolver())) {
+        for (final String resourceType : mappableTypeHierarchyOf(resource)) {
             Collection<OsgiBeanSource<?>> allSourcesForType = this.typeNameToBeanSourcesMap.get(resourceType);
             Collection<OsgiBeanSource<?>> sourcesWithMatchingBeanName = filter(allSourcesForType, beanName);
             if (sourcesWithMatchingBeanName != null && !sourcesWithMatchingBeanName.isEmpty()) {

@@ -59,6 +59,10 @@
         </dependency>
         <dependency>
             <groupId>org.apache.servicemix.bundles</groupId>
+            <artifactId>org.apache.servicemix.bundles.spring-context-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.servicemix.bundles</groupId>
             <artifactId>org.apache.servicemix.bundles.spring-web</artifactId>
         </dependency>
         <dependency>
@@ -156,6 +160,10 @@
             <artifactId>org.apache.felix.scr.annotations</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.http.jetty</artifactId>
+        </dependency>
+        <dependency>
             <groupId>javax.jcr</groupId>
             <artifactId>jcr</artifactId>
         </dependency>
@@ -170,12 +178,8 @@
             <artifactId>org.apache.servicemix.bundles.spring-test</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.easytesting</groupId>
-            <artifactId>fest-assert</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.easytesting</groupId>
-            <artifactId>fest-reflect</artifactId>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -197,7 +201,7 @@
                         <Bundle-Name>NEBA core</Bundle-Name>
                         <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
                         <Bundle-Category>neba</Bundle-Category>
-                        <Fragment-Host>org.eclipse.gemini.blueprint.extender-neba</Fragment-Host>
+                        <Fragment-Host>org.eclipse.gemini.blueprint.extender</Fragment-Host>
                         <!-- Legacy support: Embed dependencies not available on older sling platforms -->
                         <Embed-Dependency>commons-lang3</Embed-Dependency>
                         <Embed-Directory>lib</Embed-Directory>
@@ -216,7 +220,8 @@
                             org.springframework.scheduling.config,
                             org.springframework.web.filter,
                             org.aopalliance.aop,
-                            org.apache.sling.bgservlets;version=0.0.0,
+                            org.apache.sling.bgservlets;version=0.0.0;resolution:=optional,
+                            org.eclipse.jetty.websocket.server,
                             *
                         </Import-Package>
                     </instructions>
